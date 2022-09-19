@@ -2,6 +2,8 @@ local cmd = vim.cmd             -- execute Vim commands
 local exec = vim.api.nvim_exec  -- execute Vimscript
 local g = vim.g                 -- global variables
 local opt = vim.opt             -- global/buffer/windows-scoped options
+
+
 -- Направление перевода с русского на английский
 g.translate_source = 'ru'
 g.translate_target = 'en'
@@ -9,10 +11,10 @@ g.translate_target = 'en'
 g.tagbar_compact = 1
 g.tagbar_sort = 0
 -- Конфиг ale + eslint
-g.ale_fixers = { javascript= { 'eslint' } }
+g.ale_fixers = { javascript= { 'eslint'}, python= { 'isort' }, }
 -- g.ale_linters = { javascript= { 'eslint'  }  }
 -- g.ale_linters_explicit = 1
-g.ale_sign_error = '❌ '
+g.ale_sign_error = '❌'
 g.ale_sign_warning = '⚠️'
 g.ale_fix_on_save = 1
 g.ale_lint_on_text_changed = 0
@@ -96,42 +98,94 @@ require'lualine'.setup {
         icons_enabled = true,
         theme = 'auto',
         component_separators = { left = '', right = ''},
-        section_separators = { left = '', right = '
-                    useLibraryCodeForTypes = false,
-                    reportOptionalMemberAccess= false,
-                    reportUnusedFunction= false,
-                    reportFunctionMemberAccess= false,
-                }
-            },
-        }
-    end
-    server:setup(opts)
-end)
--- nvim-cmp supports additional completion capabilities
-local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
-vim.o.completeopt = 'menuone,noselect'
--- luasnip setup
-local luasnip = require 'luasnip'
--- nvim-cmp setup
-local cmp = require 'cmp'
-cmp.setup {
-    snippet = {
-        expand = function(args)
-            luasnip.lsp_expand(args.body)
-        end,
+        section_separators = { left = '', right = ''},
+        disabled_filetypes = {},
+        always_divide_middle = true,
     },
-    sources = {
-        { name = 'nvim_lsp' },
-        { name = 'luasnip' },
-        { name = 'path' },
-        { name = 'buffer', options = {
-            get_bufnrs = function()
-                return vim.api.nvim_list_bufs()
-            end
+    sections = {
+        lualine_a = {'mode'},
+        lualine_b = {
+            {'diagnostics', sources={'nvim_lsp', 'ale'}}},
+            lualine_c = {'filename'},
+            lualine_x = {'encoding', 'fileformat', 'filetype'},
+            lualine_y = {'progress'},
+            lualine_z = {'location'}
+        },
+        inactive_sections = {
+            lualine_a = {},
+            lualine_b = {},
+            lualine_c = {'filename'},
+            lualine_x = {'location'},
+            lualine_y = {},
+            lualine_z = {}
+        },
+        tabline = {},
+        extensions = {}
+    }
+    -- LSP settings
+    local lsp_installer = require("nvim-lsp-installer")
+    lsp_installer.on_server_ready(function(server)
+        local opts = {}
+        if server.name == "sumneko_lua" then
+            -- only apply these settings for the "sumneko_lua" server
+            opts.settings = {
+                Lua = {
+                    diagnostics = {
+                        -- Get the language server to recognize the 'vim', 'use' global
+                        globals = {'vim', 'use'},
+                    },
+                    workspace = {
+                        -- Make the server aware of Neovim runtime files
+                        library = vim.api.nvim_get_runtime_file("", true),
+                    },
+                    -- Do not send telemetry data containing a randomized but unique identifier
+                    telemetry = {
+                        enable = false,
+                    },
+                },
+            }
+        end
+        if server.name == "pyright" then
+            opts.settings = {
+                python = {
+                    analysis = {
+                        --
+                        -- autoSearchPaths = true,
+                        -- useLibraryCodeForTypes = true,
+                        -- reportOptionalMemberAccess= true,
+                        -- reportUnusedFunction= true,
+                        -- reportFunctionMemberAccess= true,
+                    }
+                },
+            }
+        end
+        server:setup(opts)
+    end)
+    -- nvim-cmp supports additional completion capabilities
+    local capabilities = vim.lsp.protocol.make_client_capabilities()
+    capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+    vim.o.completeopt = 'menuone,noselect'
+    -- luasnip setup
+    local luasnip = require 'luasnip'
+    -- nvim-cmp setup
+    local cmp = require 'cmp'
+    cmp.setup {
+        snippet = {
+            expand = function(args)
+                luasnip.lsp_expand(args.body)
+            end,
+        },
+        sources = {
+            { name = 'nvim_lsp' },
+            { name = 'luasnip' },
+            { name = 'path' },
+            { name = 'buffer', options = {
+                get_bufnrs = function()
+                    return vim.api.nvim_list_bufs()
+                end
+            },
         },
     },
-},
 }
 -- diagnostics
 vim.lsp.handlers["textDocument/publishDiagnostics"] =
@@ -146,12 +200,10 @@ cmd 'sign define LspDiagnosticsSignError text='
 cmd 'sign define LspDiagnosticsSignWarning text=ﰣ'
 cmd 'sign define LspDiagnosticsSignInformation text='
 cmd 'sign define LspDiagnosticsSignHint text='
--- show line diagnostic
--- vim.api.nvim_command(
--- 'autocmd CursorHold * lua vim.lsp.diagnostic.show_line_diagnostics({ focusable = false })')
+
 require'nvim-treesitter.configs'.setup {
     -- One of "all", "maintained" (parsers with maintainers), or a list of languages
-    ensure_installed = "maintained",
+    ensure_installed = "all",
     -- Install languages synchronously (only applied to `ensure_installed`)
     sync_install = false,
     -- List of parsers to ignore installing
